@@ -40,6 +40,7 @@ class Pwmgr {
 		has Pwmgr $!store;
 		has %!map = {};
 
+		# XXX why can't I use TWEAK here?
 		submethod BUILD(:$!store) {
 			$!path = $!store.path.child(INDEX_NAME);
 			if $!path ~~ :e {
@@ -60,10 +61,13 @@ class Pwmgr {
 		}
 	}
 
+	submethod TWEAK {
+		$!index = Pwmgr::Index.new(:store(self));
+	}
+
 	method create {
 		$!path.mkdir; # create if needed
-		my $index = self!get-index;
-		$index.write;
+		$!index.write;
 	}
 
 	method encrypted-read(IO $path) {
@@ -74,12 +78,8 @@ class Pwmgr {
 		$path.spurt($data);
 	}
 
-	method !get-index {
-		$!index //= Pwmgr::Index.new(:store(self));
-	}
-
 	method all {
-		self!get-index.all;
+		$!index.all;
 	}
 
 	method new-entry {
@@ -91,9 +91,8 @@ class Pwmgr {
 
 	method save-entry($entry) {
 		$entry.write;
-		my $index = self!get-index;
-		$index.update($entry.uuid, $entry.name);
-		$index.write;
+		$!index.update($entry.uuid, $entry.name);
+		$!index.write;
 	}
 }
 
