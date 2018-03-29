@@ -33,6 +33,14 @@ class Pwmgr {
 		method set-key($key, $value) {
 			%!map{$key} = $value;
 		}
+
+		method get-key($key) {
+			%!map{$key};
+		}
+
+		method all {
+			...
+		}
 	}
 	class Pwmgr::Index {
 		constant INDEX_NAME = 'index';
@@ -89,6 +97,11 @@ class Pwmgr {
 		);
 	}
 
+	method get-entry($key) {
+		my $uuid = $!index.get($key);
+		Pwmgr::Entry.new(:$uuid, :store(self));
+	}
+
 	method save-entry($entry) {
 		$entry.write;
 		$!index.update($entry.uuid, $entry.name);
@@ -109,8 +122,25 @@ multi sub MAIN('list') {
 
 multi sub MAIN('add', $key, $user, $pass) {
 	my Pwmgr $pwmgr .= new;
+
+	if $pwmgr.get-entry($key) {
+		die "$key is already in use";
+	}
+
 	my $entry = $pwmgr.new-entry;
 	$entry.name = $key;
+	$entry.set-key('user', $user);
+	$entry.set-key('pass', $pass);
+	$pwmgr.save-entry($entry);
+}
+
+multi sub MAIN('edit', $key, $user, $pass) {
+	my Pwmgr $pwmgr .= new;
+
+	my $entry = $pwmgr.get-entry($key);
+	unless $entry {
+		die "Could not find entry $entry";
+	}
 	$entry.set-key('user', $user);
 	$entry.set-key('pass', $pass);
 	$pwmgr.save-entry($entry);
