@@ -47,10 +47,14 @@ class Pwmgr {
 		method all {
 			...
 		}
+
+		method remove {
+			$!path.unlink;
+		}
 	}
 	class Pwmgr::Index {
 		constant INDEX_NAME = 'index';
-		has IO $!path;
+		has IO $.path;
 		has Pwmgr $!store;
 		has %!map = {};
 
@@ -77,6 +81,10 @@ class Pwmgr {
 		method update($key, $value) {
 			%!map{$key} = $value;
 		}
+
+		method delete($key) {
+			%!map{$key}:delete;
+		}
 	}
 
 	submethod TWEAK {
@@ -86,6 +94,11 @@ class Pwmgr {
 	method create {
 		$!path.mkdir; # create if needed
 		$!index.write;
+
+		my @git = 'git', 'init';
+		run(|@git, :cwd($!path)) or die "Failed to run git: @git[]";
+
+		self!git-commit('Initial commit.', 'index');
 	}
 
 	method encrypted-read(IO $path) {
@@ -118,6 +131,24 @@ class Pwmgr {
 		$entry.write;
 		$!index.update($entry.name, $entry.uuid);
 		$!index.write;
+
+		self!git-commit("Updated {$entry.uuid}", $entry.uuid, 'index');
+	}
+
+	method remove-entry($entry) {
+		$entry.remove;
+		$!index.delete($entry.name);
+		$!index.write;
+
+		!!! "Implement git-rm";
+	}
+
+	method !git-commit($message, *@files) {
+		my @add = 'git', 'add', '--', |@files;
+		run(|@add, :cwd($!path)) or die "Failed to run git: @add[]";
+
+		my @commit = 'git', 'commit', '-m', $message;
+		run(|@commit, :cwd($!path)) or die "Failed to run git: @commit[]";
 	}
 }
 
@@ -156,4 +187,14 @@ multi sub MAIN('edit', $key, $user, $pass) {
 	$entry.set-key('user', $user);
 	$entry.set-key('pass', $pass);
 	$pwmgr.save-entry($entry);
+}
+
+multi sub MAIN('delete', $key) {
+	my Pwmgr $pwmgr .= new;
+
+	my $entry = $pwmgr.get-entry($key);
+	unless $entry {
+		die "Could not find entry $key";
+	}
+	$pwmgr.remove-entry($entry);
 }
