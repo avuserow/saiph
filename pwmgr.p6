@@ -9,13 +9,33 @@ use Terminal::Getpass;
 use UUID;
 
 class Pwmgr {
+	constant INDEX = 'index';
 	has IO $.path = File::HomeDir.my-home.IO.child('.pwmgr');
-	has $!index;
+	has %!index;
+
+	submethod TWEAK {
+		self!read-index;
+		note %!index;
+	}
+
+	method !index-path {
+		$!path.child(INDEX);
+	}
+
+	method !read-index {
+		if self!index-path ~~ :e {
+			%!index = from-json(self.encrypted-read(self!index-path));
+		}
+	}
+
+	method !write-index {
+		self.encrypted-write(self!index-path, to-json(%!index));
+	}
 
 	class Pwmgr::Entry {
 		has Str $.uuid;
 		has Str $.name is rw;
-		has IO $!path;
+		has IO $.path;
 		has Pwmgr $!store;
 		has %!map = {};
 
@@ -52,48 +72,10 @@ class Pwmgr {
 			$!path.unlink;
 		}
 	}
-	class Pwmgr::Index {
-		constant INDEX_NAME = 'index';
-		has IO $.path;
-		has Pwmgr $!store;
-		has %!map = {};
-
-		# XXX why can't I use TWEAK here?
-		submethod BUILD(:$!store) {
-			$!path = $!store.path.child(INDEX_NAME);
-			if $!path ~~ :e {
-				%!map = from-json($!store.encrypted-read($!path));
-			}
-		}
-
-		method write {
-			$!store.encrypted-write($!path, to-json(%!map));
-		}
-
-		method all {
-			%!map.keys;
-		}
-
-		method get($key) {
-			%!map{$key};
-		}
-
-		method update($key, $value) {
-			%!map{$key} = $value;
-		}
-
-		method delete($key) {
-			%!map{$key}:delete;
-		}
-	}
-
-	submethod TWEAK {
-		$!index = Pwmgr::Index.new(:store(self));
-	}
 
 	method create {
 		$!path.mkdir; # create if needed
-		$!index.write;
+		self!write-index;
 
 		my @git = 'git', 'init';
 		run(|@git, :cwd($!path)) or die "Failed to run git: @git[]";
@@ -110,7 +92,7 @@ class Pwmgr {
 	}
 
 	method all {
-		$!index.all;
+		%!index.keys;
 	}
 
 	method new-entry {
@@ -121,7 +103,7 @@ class Pwmgr {
 	}
 
 	method get-entry($key) {
-		my $uuid = $!index.get($key);
+		my $uuid = %!index{$key};
 		if $uuid {
 			return Pwmgr::Entry.new(:$uuid, :store(self));
 		}
@@ -129,18 +111,21 @@ class Pwmgr {
 
 	method save-entry($entry) {
 		$entry.write;
-		$!index.update($entry.name, $entry.uuid);
-		$!index.write;
+		%!index{$entry.name} = $entry.uuid;
+		self!write-index;
 
-		self!git-commit("Updated {$entry.uuid}", $entry.uuid, 'index');
+		self!git-commit("Updated {$entry.uuid}", $entry.path, INDEX);
 	}
 
 	method remove-entry($entry) {
 		$entry.remove;
-		$!index.delete($entry.name);
-		$!index.write;
+		%!index{$entry.name}:delete;
+		self!write-index;
 
-		!!! "Implement git-rm";
+		my @rm = 'git', 'rm', '--', $entry.path;
+		run(|@rm, :cwd($!path)) or die "Failed to run git: @rm[]";
+
+		self!git-commit("Removed {$entry.uuid}", INDEX);
 	}
 
 	method !git-commit($message, *@files) {
