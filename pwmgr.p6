@@ -22,12 +22,18 @@ class Pwmgr {
 		submethod BUILD(:$!store, :$!uuid) {
 			$!path = $!store.path.child($!uuid);
 			if $!path ~~ :e {
-				%!map = from-json($!store.encrypted-read($!path));
+				my %data = from-json($!store.encrypted-read($!path));
+				$!name = %data<name>;
+				%!map = %data<map>;
 			}
 		}
 
 		method write {
-			$!store.encrypted-write($!path, to-json(%!map));
+			my $serialized = to-json({
+				:$!name,
+				:%!map,
+			});
+			$!store.encrypted-write($!path, $serialized);
 		}
 
 		method set-key($key, $value) {
@@ -62,6 +68,10 @@ class Pwmgr {
 
 		method all {
 			%!map.keys;
+		}
+
+		method get($key) {
+			%!map{$key};
 		}
 
 		method update($key, $value) {
@@ -99,12 +109,14 @@ class Pwmgr {
 
 	method get-entry($key) {
 		my $uuid = $!index.get($key);
-		Pwmgr::Entry.new(:$uuid, :store(self));
+		if $uuid {
+			return Pwmgr::Entry.new(:$uuid, :store(self));
+		}
 	}
 
 	method save-entry($entry) {
 		$entry.write;
-		$!index.update($entry.uuid, $entry.name);
+		$!index.update($entry.name, $entry.uuid);
 		$!index.write;
 	}
 }
@@ -139,7 +151,7 @@ multi sub MAIN('edit', $key, $user, $pass) {
 
 	my $entry = $pwmgr.get-entry($key);
 	unless $entry {
-		die "Could not find entry $entry";
+		die "Could not find entry $key";
 	}
 	$entry.set-key('user', $user);
 	$entry.set-key('pass', $pass);
