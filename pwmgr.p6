@@ -5,7 +5,6 @@ use v6.d.PREVIEW;
 
 use File::HomeDir;
 use JSON::Tiny;
-use Terminal::Getpass;
 use UUID;
 
 class Pwmgr {
@@ -15,7 +14,6 @@ class Pwmgr {
 
 	submethod TWEAK {
 		self!read-index;
-		note %!index;
 	}
 
 	method !index-path {
@@ -64,10 +62,6 @@ class Pwmgr {
 			%!map{$key};
 		}
 
-		method all {
-			...
-		}
-
 		method remove {
 			$!path.unlink;
 		}
@@ -103,8 +97,7 @@ class Pwmgr {
 	}
 
 	method get-entry($key) {
-		my $uuid = %!index{$key};
-		if $uuid {
+		with %!index{$key} -> $uuid {
 			return Pwmgr::Entry.new(:$uuid, :store(self));
 		}
 	}
@@ -132,7 +125,7 @@ class Pwmgr {
 		my @add = 'git', 'add', '--', |@files;
 		run(|@add, :cwd($!path)) or die "Failed to run git: @add[]";
 
-		my @commit = 'git', 'commit', '-m', $message;
+		my @commit = 'git', 'commit', '-m', $message, '--allow-empty';
 		run(|@commit, :cwd($!path)) or die "Failed to run git: @commit[]";
 	}
 }
@@ -157,20 +150,95 @@ multi sub MAIN('add', $key, $user, $pass) {
 
 	my $entry = $pwmgr.new-entry;
 	$entry.name = $key;
-	$entry.set-key('user', $user);
-	$entry.set-key('pass', $pass);
+	$entry.set-key('username', $user);
+	$entry.set-key('password', $pass);
 	$pwmgr.save-entry($entry);
 }
 
-multi sub MAIN('edit', $key, $user, $pass) {
+constant TEMPLATE = <username password url>;
+
+sub prompt-prefill($question, $suggestion) {
+	use Readline;
+	my $rl = Readline.new;
+	my $answer;
+	my sub line-handler(Str $line) {
+		$rl.callback-handler-remove();
+		$answer = $line;
+	}
+
+	rl_callback_handler_install("$question: ", &line-handler);
+
+	if $suggestion {
+		$rl.insert-text($suggestion);
+		$rl.redisplay;
+	}
+	until $answer.defined {
+		$rl.callback-read-char();
+	}
+
+	return $answer;
+}
+
+sub lazy-prompt(&lookup-key) {
+	use Readline;
+	my $rl = Readline.new;
+	my $answer;
+	my sub line-handler( Str $line ) {
+		rl_callback_handler_remove();
+		$answer = $line;
+	}
+
+	rl_callback_handler_install("> ", &line-handler);
+	#rl_add_funmap_entry(COMPLETE_FN, sub ($a, $b) {});
+	my sub key-value-completer(int32 $a, int32 $ord) {
+		my $char = $ord.chr;
+		my $completion = $char;
+		$completion ~= ' ' if $char eq ':'; # format colons nicely
+
+		use NativeCall;
+		my $buffer = cglobal('readline', 'rl_line_buffer', Str);
+
+		with &lookup-key($buffer) -> $value {
+			$completion ~= $value;
+		}
+		$rl.insert-text($completion);
+	}
+	$rl.bind-key(':', &key-value-completer);
+	$rl.bind-key('=', &key-value-completer);
+
+	until $answer.defined {
+		$rl.callback-read-char();
+	}
+
+	return $answer;
+}
+
+sub entry-editor($entry) {
+	for TEMPLATE -> $field {
+		my $result = prompt-prefill($field, $entry.get-key($field));
+		$entry.set-key($field, $result);
+	}
+
+	# non-template fields
+	say "Custom fields. Enter one per line in 'key=value' or 'key: value' formats.";
+	say "Existing fields will be pre-filled when you type the separator character.";
+	say "Enter a blank line when finished.";
+	say "See special commands by entering '.help'.";
+
+	while lazy-prompt(-> $key {$entry.get-key($key)}) -> $line {
+		last unless $line;
+
+	}
+}
+
+multi sub MAIN('edit', $key) {
 	my Pwmgr $pwmgr .= new;
 
 	my $entry = $pwmgr.get-entry($key);
 	unless $entry {
 		die "Could not find entry $key";
 	}
-	$entry.set-key('user', $user);
-	$entry.set-key('pass', $pass);
+	entry-editor($entry);
 	$pwmgr.save-entry($entry);
 }
 
