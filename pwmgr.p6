@@ -7,6 +7,13 @@ use File::HomeDir;
 use JSON::Tiny;
 use UUID;
 
+class X::Pwmgr::Error is Exception {
+	has $.message;
+	method new($message) {self.bless(:$message);}
+	method gist {$!message}
+}
+
+constant KEY_PATTERN = rx/<[a..zA..Z0..9]><[a..zA..Z0..9._/]>*/;
 class Pwmgr {
 	constant INDEX = 'index';
 	has IO $.path = File::HomeDir.my-home.IO.child('.pwmgr');
@@ -55,11 +62,22 @@ class Pwmgr {
 		}
 
 		method set-key($key, $value) {
+			unless $key ~~ /^$(KEY_PATTERN)$/ {
+				die X::Pwmgr::Error.new("Invalid pattern for key '$key'");
+			}
 			%!map{$key} = $value;
 		}
 
 		method get-key($key) {
 			%!map{$key};
+		}
+
+		method remove-key($key) {
+			%!map{$key}:delete;
+		}
+
+		method keys {
+			%!map.keys;
 		}
 
 		method remove {
@@ -189,7 +207,6 @@ sub lazy-prompt(&lookup-key) {
 	}
 
 	rl_callback_handler_install("> ", &line-handler);
-	#rl_add_funmap_entry(COMPLETE_FN, sub ($a, $b) {});
 	my sub key-value-completer(int32 $a, int32 $ord) {
 		my $char = $ord.chr;
 		my $completion = $char;
@@ -213,6 +230,14 @@ sub lazy-prompt(&lookup-key) {
 	return $answer;
 }
 
+constant ENTRY_EDITOR_HELP = q:to/END/;
+
+Enter custom fields. Enter one per line in 'key=value' or 'key: value' formats.
+Existing fields will be pre-filled when you type the separator character.
+See special commands by entering '.help'.
+Enter a blank line when finished.
+END
+
 sub entry-editor($entry) {
 	for TEMPLATE -> $field {
 		my $result = prompt-prefill($field, $entry.get-key($field));
@@ -220,14 +245,59 @@ sub entry-editor($entry) {
 	}
 
 	# non-template fields
-	say "Custom fields. Enter one per line in 'key=value' or 'key: value' formats.";
-	say "Existing fields will be pre-filled when you type the separator character.";
-	say "Enter a blank line when finished.";
-	say "See special commands by entering '.help'.";
+	say ENTRY_EDITOR_HELP;
 
-	while lazy-prompt(-> $key {$entry.get-key($key)}) -> $line {
+	while lazy-prompt(-> $key {$entry.get-key($key)}) -> $line is copy {
+		# Remove extra whitespace.
+		$line .= trim;
+
+		# Empty line means we're done.
 		last unless $line;
 
+		# Is it a command?
+		if $line.starts-with('.') {
+			my @words = $line.words;
+			given @words[0] {
+				when '.help' {
+					say ENTRY_EDITOR_HELP;
+				}
+				when '.delete' {
+					my $key = @words[1];
+					if $key {
+						$entry.remove-key($key);
+						say "Removed $key.";
+					} else {
+						say "Usage: .delete key";
+					}
+				}
+				when '.keys' {
+					say $entry.keys;
+				}
+				default {
+					say "Unknown command '@words[0]'. Use '.help' for help.";
+				}
+			}
+			next;
+		}
+
+		# Is it a valid key/value pair?
+		with $line.match(/^(<-[:=]>+) \s* <[:=]> \s* (.*)$/) {
+			my $k = $0.Str;
+			my $v = $1.Str;
+
+			if $v {
+				$entry.set-key($k, $v);
+			} else {
+				note "Not setting $k to be empty. Use '.delete $k' to delete this key.";
+			}
+			next;
+
+			CATCH {
+				default {.say; next;}
+			}
+		}
+
+		say "Unknown syntax. Use '.help' for help.";
 	}
 }
 
