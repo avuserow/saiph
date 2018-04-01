@@ -42,7 +42,9 @@ class Pwmgr {
 		has Str $.name is rw;
 		has IO $.path;
 		has Pwmgr $!store;
-		has %!map = {};
+
+		subset EntryKey of Str where * ~~ /^$(KEY_PATTERN)$/;
+		has %.map{EntryKey};
 
 		submethod BUILD(:$!store, :$!uuid) {
 			$!path = $!store.path.child($!uuid);
@@ -59,25 +61,6 @@ class Pwmgr {
 				:%!map,
 			});
 			$!store.encrypted-write($!path, $serialized);
-		}
-
-		method set-key($key, $value) {
-			unless $key ~~ /^$(KEY_PATTERN)$/ {
-				die X::Pwmgr::Error.new("Invalid pattern for key '$key'");
-			}
-			%!map{$key} = $value;
-		}
-
-		method get-key($key) {
-			%!map{$key};
-		}
-
-		method remove-key($key) {
-			%!map{$key}:delete;
-		}
-
-		method keys {
-			%!map.keys;
 		}
 
 		method remove {
@@ -168,8 +151,8 @@ multi sub MAIN('add', $key, $user, $pass) {
 
 	my $entry = $pwmgr.new-entry;
 	$entry.name = $key;
-	$entry.set-key('username', $user);
-	$entry.set-key('password', $pass);
+	$entry.map<username> = $user;
+	$entry.map<password> = $pass;
 	$pwmgr.save-entry($entry);
 }
 
@@ -241,14 +224,14 @@ END
 
 sub entry-editor($entry) {
 	for TEMPLATE -> $field {
-		my $result = prompt-prefill($field, $entry.get-key($field));
-		$entry.set-key($field, $result);
+		my $result = prompt-prefill($field, $entry.map{$field});
+		$entry.map{$field} = $result;
 	}
 
 	# non-template fields
 	say ENTRY_EDITOR_HELP;
 
-	while lazy-prompt(-> $key {$entry.get-key($key)}) -> $line is copy {
+	while lazy-prompt(-> $key {$entry.map{$key}}) -> $line is copy {
 		# Remove extra whitespace.
 		$line .= trim;
 
@@ -265,14 +248,14 @@ sub entry-editor($entry) {
 				when '.delete' {
 					my $key = @words[1];
 					if $key {
-						$entry.remove-key($key);
+						$entry.map{$key}:delete;
 						say "Removed $key.";
 					} else {
 						say "Usage: .delete key";
 					}
 				}
 				when '.keys' {
-					say $entry.keys;
+					say $entry.map.keys;
 				}
 				default {
 					say "Unknown command '@words[0]'. Use '.help' for help.";
@@ -287,7 +270,7 @@ sub entry-editor($entry) {
 			my $v = $1.Str;
 
 			if $v {
-				$entry.set-key($k, $v);
+				$entry.map{$k} = $v;
 			} else {
 				note "Not setting $k to be empty. Use '.delete $k' to delete this key.";
 			}
@@ -327,19 +310,19 @@ multi sub MAIN('delete', $key) {
 multi sub MAIN('show', $entry) {
 	my Pwmgr $pwmgr .= new;
 	my $e = $pwmgr.get-entry($entry) // die "Could not find entry $entry";
-	.say for $e.keys;
+	.say for $e.map.keys;
 }
 
 multi sub MAIN('show', $key, $field) {
 	my Pwmgr $pwmgr .= new;
 	my $entry = $pwmgr.get-entry($key) // die "Could not find entry $key";
-	say $entry.get-key($field) // die "Field $field not found in entry $key";
+	say $entry.map{$field} // die "Field $field not found in entry $key";
 }
 
 #| With the specified entry, copy its field onto the clipboard.
 multi sub MAIN('clip', $entry, $field) {
 	my Pwmgr $pwmgr .= new;
 	my $e = $pwmgr.get-entry($entry) // die "Could not find entry $entry";
-	my $value = $e.get-key($field) // die "Field $field not found in entry $entry";
-	
+	my $value = $e.map{$field} // die "Field $field not found in entry $entry";
+	$pwmgr.to-clipboard($value);
 }
