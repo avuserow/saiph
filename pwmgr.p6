@@ -175,6 +175,7 @@ multi sub MAIN('add', $key, $user, $pass) {
 
 constant TEMPLATE = <username password url>;
 
+# TODO: combine the two prompt methods
 sub prompt-prefill($question, $suggestion) {
 	use Readline;
 	my $rl = Readline.new;
@@ -320,4 +321,25 @@ multi sub MAIN('delete', $key) {
 		die "Could not find entry $key";
 	}
 	$pwmgr.remove-entry($entry);
+}
+
+#| Show all keys for the specified entry.
+multi sub MAIN('show', $entry) {
+	my Pwmgr $pwmgr .= new;
+	my $e = $pwmgr.get-entry($entry) // die "Could not find entry $entry";
+	.say for $e.keys;
+}
+
+multi sub MAIN('show', $key, $field) {
+	my Pwmgr $pwmgr .= new;
+	my $entry = $pwmgr.get-entry($key) // die "Could not find entry $key";
+	say $entry.get-key($field) // die "Field $field not found in entry $key";
+}
+
+#| With the specified entry, copy its field onto the clipboard.
+multi sub MAIN('clip', $entry, $field) {
+	my Pwmgr $pwmgr .= new;
+	my $e = $pwmgr.get-entry($entry) // die "Could not find entry $entry";
+	my $value = $e.get-key($field) // die "Field $field not found in entry $entry";
+	
 }
