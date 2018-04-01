@@ -129,6 +129,13 @@ class Pwmgr {
 		my @commit = 'git', 'commit', '-m', $message, '--allow-empty';
 		run(|@commit, :cwd($!path)) or die "Failed to run git: @commit[]";
 	}
+
+	method to-clipboard($value) {
+		my @xclip = 'xclip', '-loops', '1';
+		my $proc = run(|@xclip, :in) // die "Failed to run xclip: @xclip[]";
+		$proc.in.print($value);
+		$proc.in.close;
+	}
 }
 
 multi sub MAIN('create') {
@@ -246,8 +253,7 @@ sub entry-editor($entry) {
 					say ENTRY_EDITOR_HELP;
 				}
 				when '.delete' {
-					my $key = @words[1];
-					if $key {
+					with @words[1] -> $key {
 						$entry.map{$key}:delete;
 						say "Removed $key.";
 					} else {
