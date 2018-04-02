@@ -30,6 +30,12 @@ class Pwmgr {
 	method !read-index {
 		if self!index-path ~~ :e {
 			%!index = from-json(self.encrypted-read(self!index-path));
+			CATCH {
+				default {
+					say "Reading index failed. Try rebuilding the index.";
+					.throw;
+				}
+			}
 		}
 	}
 
@@ -37,6 +43,9 @@ class Pwmgr {
 		self.encrypted-write(self!index-path, to-json(%!index));
 	}
 
+	# XXX: consider whether we should flatten this into a single hash,
+	# and not differentiate between user data and our data aside from a simple
+	# whitelist and beginning with a . or similar
 	class Pwmgr::Entry {
 		has Str $.uuid;
 		has Str $.name is rw;
@@ -79,11 +88,19 @@ class Pwmgr {
 	}
 
 	method encrypted-read(IO $path) {
-		$path.slurp;
+		my @gpg = 'gpg2', '--quiet', '--decrypt', $path;
+		my $proc = run(|@gpg, :out) // die "Failed to run gpg2: @gpg[]";
+		my $data = $proc.out.slurp(:close);
+		$proc.sink;
+		return $data;
 	}
 
 	method encrypted-write(IO $path, Str $data) {
-		$path.spurt($data);
+		my $fh = open $path, :w;
+		my @gpg = 'gpg2', '--quiet', '--encrypt', '--default-recipient-self';
+		my $proc = run(|@gpg, :in, :out($fh)) // die "Failed to run gpg2: @gpg[]";
+		$proc.in.spurt($data, :close);
+		$proc.sink;
 	}
 
 	method all {
@@ -131,10 +148,9 @@ class Pwmgr {
 	}
 
 	method to-clipboard($value) {
-		my @xclip = 'xclip', '-loops', '1';
+		my @xclip = 'xclip', '-loops', '1', '-quiet';
 		my $proc = run(|@xclip, :in) // die "Failed to run xclip: @xclip[]";
-		$proc.in.print($value);
-		$proc.in.close;
+		$proc.in.spurt($value, :close);
 	}
 }
 
