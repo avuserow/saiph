@@ -120,6 +120,18 @@ class Pwmgr {
 		}
 	}
 
+	method smartfind($name) {
+		# Check for an exact match
+		.return with self.get-entry($name);
+
+		# Check for a prefix match
+		my @matches = %!index.keys.grep(*.starts-with($name)).map({self.get-entry($_)});
+		return @matches if @matches;
+
+		# Check for match at a word boundary
+		return %!index.keys.grep(/<|w>$name/).map({self.get-entry($_)});
+	}
+
 	method save-entry($entry) {
 		$entry.write;
 		%!index{$entry.name} = $entry.uuid;
@@ -162,10 +174,10 @@ multi sub MAIN('create') {
 
 multi sub MAIN('list') {
 	my Pwmgr $pwmgr .= new;
-	.say for $pwmgr.all;
+	.say for $pwmgr.all.sort;
 }
 
-multi sub MAIN('add', $key, $user, $pass) {
+multi sub MAIN('add', $key, $user?, $pass?) {
 	my Pwmgr $pwmgr .= new;
 
 	if $pwmgr.get-entry($key) {
@@ -347,4 +359,19 @@ multi sub MAIN('clip', $entry, $field) {
 	my $e = $pwmgr.get-entry($entry) // die "Could not find entry $entry";
 	my $value = $e.map{$field} // die "Field $field not found in entry $entry";
 	$pwmgr.to-clipboard($value);
+}
+
+#| Find entry specified by name and use it.
+multi sub MAIN('auto', $name) {
+	my Pwmgr $pwmgr .= new;
+
+	# Try to find it by exact name
+	my @entries = $pwmgr.smartfind($name);
+	if @entries == 1 {
+		say "Found it! {@entries[0].name}";
+	} elsif @entries == 0 {
+		say "No matching entry found.";
+	} else {
+		say "More than one matching entry: {@entries>>.name.join(', ')}";
+	}
 }
