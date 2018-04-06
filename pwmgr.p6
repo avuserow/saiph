@@ -193,30 +193,7 @@ multi sub MAIN('add', $key, $user?, $pass?) {
 
 constant TEMPLATE = <username password url>;
 
-# TODO: combine the two prompt methods
-sub prompt-prefill($question, $suggestion) {
-	use Readline;
-	my $rl = Readline.new;
-	my $answer;
-	my sub line-handler(Str $line) {
-		$rl.callback-handler-remove();
-		$answer = $line;
-	}
-
-	rl_callback_handler_install("$question: ", &line-handler);
-
-	if $suggestion {
-		$rl.insert-text($suggestion);
-		$rl.redisplay;
-	}
-	until $answer.defined {
-		$rl.callback-read-char();
-	}
-
-	return $answer;
-}
-
-sub lazy-prompt(&lookup-key) {
+sub lazy-prompt(&lookup-key, :$hard-key) {
 	use Readline;
 	my $rl = Readline.new;
 	my $answer;
@@ -225,7 +202,9 @@ sub lazy-prompt(&lookup-key) {
 		$answer = $line;
 	}
 
-	rl_callback_handler_install("> ", &line-handler);
+	my $question = $hard-key ?? "$hard-key: " !! '> ';
+	rl_callback_handler_install($question, &line-handler);
+
 	my sub key-value-completer(int32 $a, int32 $ord) {
 		my $char = $ord.chr;
 		my $completion = $char;
@@ -234,13 +213,19 @@ sub lazy-prompt(&lookup-key) {
 		use NativeCall;
 		my $buffer = cglobal('readline', 'rl_line_buffer', Str);
 
-		with &lookup-key($buffer) -> $value {
-			$completion ~= $value;
-		}
+		$completion ~= &lookup-key($buffer) // '';
 		$rl.insert-text($completion);
 	}
-	$rl.bind-key(':', &key-value-completer);
-	$rl.bind-key('=', &key-value-completer);
+
+	if $hard-key {
+		with &lookup-key($hard-key) -> $value {
+			$rl.insert-text($value);
+			$rl.redisplay;
+		}
+	} else {
+		$rl.bind-key(':', &key-value-completer);
+		$rl.bind-key('=', &key-value-completer);
+	}
 
 	until $answer.defined {
 		$rl.callback-read-char();
@@ -259,7 +244,7 @@ END
 
 sub entry-editor($entry) {
 	for TEMPLATE -> $field {
-		my $result = prompt-prefill($field, $entry.map{$field});
+		my $result = lazy-prompt(-> $key {$entry.map{$key}}, :hard-key($field));
 		$entry.map{$field} = $result;
 	}
 
