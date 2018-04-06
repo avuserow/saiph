@@ -197,9 +197,11 @@ sub lazy-prompt(&lookup-key, :$hard-key) {
 	use Readline;
 	my $rl = Readline.new;
 	my $answer;
+	my $done = False;
 	my sub line-handler(Str $line) {
 		rl_callback_handler_remove();
 		$answer = $line;
+		$done = True;
 	}
 
 	my $question = $hard-key ?? "$hard-key: " !! '> ';
@@ -227,7 +229,7 @@ sub lazy-prompt(&lookup-key, :$hard-key) {
 		$rl.bind-key('=', &key-value-completer);
 	}
 
-	$rl.callback-read-char() until $answer.defined;
+	$rl.callback-read-char() until $done;
 	return $answer;
 }
 
