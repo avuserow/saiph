@@ -197,7 +197,7 @@ sub lazy-prompt(&lookup-key, :$hard-key) {
 	use Readline;
 	my $rl = Readline.new;
 	my $answer;
-	my sub line-handler( Str $line ) {
+	my sub line-handler(Str $line) {
 		rl_callback_handler_remove();
 		$answer = $line;
 	}
@@ -227,10 +227,7 @@ sub lazy-prompt(&lookup-key, :$hard-key) {
 		$rl.bind-key('=', &key-value-completer);
 	}
 
-	until $answer.defined {
-		$rl.callback-read-char();
-	}
-
+	$rl.callback-read-char() until $answer.defined;
 	return $answer;
 }
 
@@ -265,14 +262,6 @@ sub entry-editor($entry) {
 				when '.help' {
 					say ENTRY_EDITOR_HELP;
 				}
-				when '.delete' {
-					with @words[1] -> $key {
-						$entry.map{$key}:delete;
-						say "Removed $key.";
-					} else {
-						say "Usage: .delete key";
-					}
-				}
 				when '.keys' {
 					say $entry.map.keys;
 				}
@@ -287,17 +276,11 @@ sub entry-editor($entry) {
 		with $line.match(/^(<-[:=]>+) \s* <[:=]> \s* (.*)$/) {
 			my $k = $0.Str;
 			my $v = $1.Str;
-
-			if $v {
-				$entry.map{$k} = $v;
-			} else {
-				note "Not setting $k to be empty. Use '.delete $k' to delete this key.";
-			}
+			$entry.map{$k} = $v;
 			next;
 
-			CATCH {
-				default {.say; next;}
-			}
+			# Invalid key syntax is an exception, just print it here
+			CATCH {default {.say; next;}}
 		}
 
 		say "Unknown syntax. Use '.help' for help.";
