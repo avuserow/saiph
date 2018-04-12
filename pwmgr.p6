@@ -7,6 +7,8 @@ use File::HomeDir;
 use JSON::Tiny;
 use UUID;
 
+my $*database;
+
 class X::Pwmgr::Error is Exception {
 	has $.message;
 	method new($message) {self.bless(:$message);}
@@ -16,7 +18,7 @@ class X::Pwmgr::Error is Exception {
 constant KEY_PATTERN = rx/<[a..zA..Z0..9]><[a..zA..Z0..9._/]>*/;
 class Pwmgr {
 	constant INDEX = 'index';
-	has IO $.path = File::HomeDir.my-home.IO.child('.pwmgr');
+	has IO $.path = %*ENV<PWMGR_DATABASE>.?IO // File::HomeDir.my-home.IO.child('.pwmgr');
 	has %!index;
 
 	submethod TWEAK {
@@ -120,7 +122,8 @@ class Pwmgr {
 		}
 	}
 
-	method smartfind($name) {
+	#| Find entries 
+	method find-entry($name) {
 		# Check for an exact match
 		.return with self.get-entry($name);
 
@@ -130,6 +133,18 @@ class Pwmgr {
 
 		# Check for match at a word boundary
 		return %!index.keys.grep(/<|w>$name/).map({self.get-entry($_)});
+	}
+
+	#| Find an entry and return an error unless exactly one is found.
+	method smartfind($name) {
+		my @entries = self.find-entry($name);
+		if @entries == 1 {
+			return @entries[0];
+		} elsif @entries == 0 {
+			die X::Pwmgr::Error("No matching entry found.");
+		} else {
+			die X::Pwmgr::Error.new("More than one matching entry: {@entries>>.name.join(', ')}");
+		}
 	}
 
 	method save-entry($entry) {
@@ -166,17 +181,20 @@ class Pwmgr {
 	}
 }
 
+#| Initialize the database.
 multi sub MAIN('create') {
 	my Pwmgr $pwmgr .= new;
 	$pwmgr.create;
 	say 'Done';
 }
 
+#| List all entries in the database.
 multi sub MAIN('list') {
 	my Pwmgr $pwmgr .= new;
 	.say for $pwmgr.all.sort;
 }
 
+#| Add an entry to the database.
 multi sub MAIN('add', $key, $user?, $pass?) {
 	my Pwmgr $pwmgr .= new;
 
@@ -193,7 +211,7 @@ multi sub MAIN('add', $key, $user?, $pass?) {
 
 constant TEMPLATE = <username password url>;
 
-sub lazy-prompt(&lookup-key, :$hard-key) {
+sub lazy-prompt(&lookup-key, :$hard-key, :@all-keys) {
 	use Readline;
 	my $rl = Readline.new;
 	my $answer;
@@ -219,15 +237,55 @@ sub lazy-prompt(&lookup-key, :$hard-key) {
 		$rl.insert-text($completion);
 	}
 
+	# Tab completion reimplementation, since we can't hook into the system one
+	my sub tab-completer(int32 $a, int32 $b) {
+		use NativeCall;
+		my $buffer = cglobal('readline', 'rl_line_buffer', Str);
+
+		# Make a copy that unifies hard-key and regular mode
+		my $tempbuffer = $hard-key ?? "$hard-key: $buffer" !! $buffer;
+		# XXX tighten up this buffer parsing logic to be unified with other
+		# uses, and to make the whitespace handling consistent/easier
+		if $tempbuffer ~~ /(.+)\s*<[:=]>\s?$/ {
+			my $key = $0.Str;
+			my $completion ~= &lookup-key($key) // '';
+			$rl.insert-text($completion);
+		} elsif $tempbuffer !~~ /<[:=]>/ {
+			my @matches = @all-keys.grep: *.starts-with($buffer);
+			if @matches == 0 {
+				# nothing matched, do nothing
+			} elsif @matches == 1 {
+				$rl.insert-text(@matches[0].substr($buffer.chars));
+			} elsif @matches < 25 {
+				say "";
+				# XXX: split this "column-wise" as opposed to the current
+				# row-wise to be more like bash's completion
+				for @matches.rotor(2, :partial) {
+					say sprintf("%-40s%-40s", |$_);
+				}
+				$rl.forced-update-display;
+			} else {
+				say "";
+				say "Found {+@matches} fields. Use .keys to list them or be more specific.";
+				$rl.forced-update-display;
+			}
+		}
+
+		# we crash unless returning false here
+		return False;
+	}
+
 	if $hard-key {
 		with &lookup-key($hard-key) -> $value {
 			$rl.insert-text($value);
 			$rl.redisplay;
 		}
 	} else {
-		$rl.bind-key(':', &key-value-completer);
-		$rl.bind-key('=', &key-value-completer);
+		# XXX evaluate removing this
+		# $rl.bind-key(':', &key-value-completer);
+		# $rl.bind-key('=', &key-value-completer);
 	}
+	$rl.bind-key('	', &tab-completer);
 
 	$rl.callback-read-char() until $done;
 	return $answer;
@@ -250,7 +308,7 @@ sub entry-editor($entry) {
 	# non-template fields
 	say ENTRY_EDITOR_HELP;
 
-	while lazy-prompt(-> $key {$entry.map{$key}}) -> $line is copy {
+	while lazy-prompt(-> $key {$entry.map{$key}}, :all-keys($entry.map.keys.sort)) -> $line is copy {
 		# Remove extra whitespace.
 		$line .= trim;
 
@@ -275,7 +333,7 @@ sub entry-editor($entry) {
 		}
 
 		# Is it a valid key/value pair?
-		with $line.match(/^(<-[:=]>+) \s* <[:=]> \s* (.*)$/) {
+		with $line.match(/^(<-[:=]>+) \s* <[:=]> \s* (.*)$/) { # ' highlight fix
 			my $k = $0.Str;
 			my $v = $1.Str;
 			$entry.map{$k} = $v;
@@ -289,24 +347,22 @@ sub entry-editor($entry) {
 	}
 }
 
+#| Edit the provided entry via an interactive editor.
 multi sub MAIN('edit', $key) {
 	my Pwmgr $pwmgr .= new;
 
 	my $entry = $pwmgr.get-entry($key);
-	unless $entry {
-		die "Could not find entry $key";
-	}
+	die "Could not find entry $key" unless $entry;
 	entry-editor($entry);
 	$pwmgr.save-entry($entry);
 }
 
+#| Remove an entry from the database.
 multi sub MAIN('delete', $key) {
 	my Pwmgr $pwmgr .= new;
 
 	my $entry = $pwmgr.get-entry($key);
-	unless $entry {
-		die "Could not find entry $key";
-	}
+	die "Could not find entry $key" unless $entry;
 	$pwmgr.remove-entry($entry);
 }
 
@@ -317,10 +373,20 @@ multi sub MAIN('show', $entry) {
 	.say for $e.map.keys;
 }
 
+#| Show the specified entry's value for the specified key.
 multi sub MAIN('show', $key, $field) {
 	my Pwmgr $pwmgr .= new;
 	my $entry = $pwmgr.get-entry($key) // die "Could not find entry $key";
 	say $entry.map{$field} // die "Field $field not found in entry $key";
+}
+
+#| Set the provided entry's field from STDIN (primarily for automation)
+multi sub MAIN('set', $key, $field) {
+	my Pwmgr $pwmgr .= new;
+	my $entry = $pwmgr.get-entry($key);
+	my $value = $*IN.lines()[0];
+	$entry.map{$field} = $value;
+	$pwmgr.save-entry($entry);
 }
 
 #| With the specified entry, copy its field onto the clipboard.
@@ -331,17 +397,34 @@ multi sub MAIN('clip', $entry, $field) {
 	$pwmgr.to-clipboard($value);
 }
 
-#| Find entry specified by name and use it.
+#| Find an entry by name and use it.
 multi sub MAIN('auto', $name) {
 	my Pwmgr $pwmgr .= new;
-
-	# Try to find it by exact name
-	my @entries = $pwmgr.smartfind($name);
-	if @entries == 1 {
-		say "Found it! {@entries[0].name}";
-	} elsif @entries == 0 {
-		say "No matching entry found.";
-	} else {
-		say "More than one matching entry: {@entries>>.name.join(', ')}";
-	}
+	my $entry = $pwmgr.smartfind($name);
 }
+
+#| Process global CLI arguments that are specified before the subcommand
+#| These values are exported as dynamic variables
+#sub process-global-args(@args) {
+#	my $found-verb = False;
+#	my %values;
+#	loop (my $i = 0; $i < @args; $i++) {
+#		if @args[$i] ~~ /^'--' (<[a..zA..Z-]>+)$/ {
+#			%values{$0.Str} = @args[$i+1];
+#			$i++;
+#		} elsif @args[$i] ~~ /^'--' (<[a..zA..Z-]>+) '=' (.+)$/ {
+#			%values{$0.Str} = $1.Str;
+#		} else {
+#			$found-verb = True;
+#			last;
+#		}
+#	}
+#
+#	# Only modify if we found a verb
+#	if $found-verb {
+#		@args.splice(0, $i);
+#		$*database = %values<d> // %values<database>;
+#	}
+#}
+#
+#process-global-args(@*ARGS);
