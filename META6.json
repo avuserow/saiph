@@ -1,0 +1,16 @@
+{
+	"perl" : "6.*",
+	"name" : "Pwmgr",
+	"license" : "MIT",
+	"version" : "0.0.1",
+	"description" : "Manage your passwords",
+	"author" : "Adrian Kreher",
+	"provides" : {
+		"Pwmgr" : "lib/Pwmgr.pm6",
+		"Pwmgr::Test" : "lib/Pwmgr/Test.pm6"
+	},
+	"depends" : [],
+	"tags" : [
+	],
+	"source-url" : "git://github.com/avuserow/perl6-audio-taglib-simple.git"
+}

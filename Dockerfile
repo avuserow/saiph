@@ -20,4 +20,5 @@ RUN git config --global user.email 'joe@foo.bar'
 ADD . /root/pwmgr
 
 WORKDIR /root/pwmgr
+RUN zef install --/test .
 CMD bash

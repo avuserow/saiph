@@ -2,7 +2,7 @@ all:
 	echo Got here.
 
 docker-build:
-	docker build -t pwmgr .
+	docker build -t pwmgr:dev .
 
-docker-test:
-	prove -e'docker run --rm -t -v ${PWD}:/root/pwmgr pwmgr perl6 -Ilib' t/
+docker-test: docker-build
+	docker run --rm -t pwmgr:dev prove -eperl6 -r xt/
