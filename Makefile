@@ -1,5 +1,8 @@
 all:
 	echo Got here.
 
+docker-build:
+	docker build -t pwmgr .
+
 docker-test:
-	prove -e'sudo docker run --rm -t pwmgr perl6' t/
+	prove -e'docker run --rm -t -v ${PWD}:/root/pwmgr pwmgr perl6 -Ilib' t/
