@@ -5,4 +5,4 @@ docker-build:
 	docker build -t pwmgr:dev .
 
 docker-test: docker-build
-	docker run --rm -t pwmgr:dev prove -eperl6 -r xt/
+	prove -e'docker run --rm -t pwmgr:dev perl6' -r xt/

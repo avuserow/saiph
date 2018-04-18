@@ -1,0 +1,6 @@
+*.swp
+.git
+Makefile
+Dockerfile
+.dockerignore
+.precomp

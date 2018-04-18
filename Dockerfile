@@ -14,11 +14,12 @@ Name-Email: joe@foo.bar\n\
 Expire-Date: 0\n\
 %commit\n\
 %echo done' | gpg2 --batch --generate-key
-RUN zef install File::HomeDir JSON::Tiny UUID Readline
-RUN git config --global user.name 'Joe Cool'
-RUN git config --global user.email 'joe@foo.bar'
-ADD . /root/pwmgr
 
 WORKDIR /root/pwmgr
+RUN git config --global user.name 'Joe Cool'
+RUN git config --global user.email 'joe@foo.bar'
+
+RUN zef install File::HomeDir JSON::Tiny UUID Readline
+ADD . /root/pwmgr
 RUN zef install --/test .
 CMD bash
