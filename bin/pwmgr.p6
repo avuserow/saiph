@@ -39,7 +39,7 @@ multi sub MAIN('edit', $key) {
 
 	my $entry = $pwmgr.get-entry($key);
 	die "Could not find entry $key" unless $entry;
-	entry-editor($entry);
+	simple-entry-editor($entry);
 	$pwmgr.save-entry($entry);
 }
 

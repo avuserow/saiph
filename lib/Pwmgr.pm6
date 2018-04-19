@@ -314,3 +314,49 @@ sub entry-editor($entry) is export {
 	}
 }
 
+
+my %REPL = (
+	'.keys' =>
+		#| .keys: List the keys defined for this entry.
+		-> :$entry {say $entry.map.keys},
+	'.show' =>
+		#| .show <key>: show the given key for this entry
+		-> $key, :$entry {say $entry.map{$key} // ''},
+	'.help' =>
+		#| .help: See help for the editor and a list of commands
+		-> *%_ {
+			say ENTRY_EDITOR_HELP;
+			say %REPL{$_}.WHY for %REPL.keys.sort;
+		},
+);
+
+sub simple-entry-editor($entry) is export {
+	say "Editing {$entry.name}";
+#	for TEMPLATE -> $field {
+#		my $result = prompt "$field: ";
+#		$entry.map{$field} = $result;
+#	}
+
+	say ENTRY_EDITOR_HELP;
+	loop { # REPL loop
+		my $line = prompt('> ') // '';
+		$line .= trim;
+		last unless $line; # empty line terminates
+
+		my ($verb, @words) = $line.words;
+		with %REPL{$verb} -> &cmd {
+			&cmd(|@words, :$entry);
+			CATCH {
+				default {
+					say $_, "\n", "Usage: ", %REPL{$verb}.WHY;
+				}
+			}
+		} elsif $line ~~ /^$(KEY_PATTERN)$/ {
+			my $value = prompt "$line: ";
+			$entry.map{$line} = $value;
+		} else {
+			say "Unknown command.";
+			say ENTRY_EDITOR_HELP;
+		}
+	}
+}
