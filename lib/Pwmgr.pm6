@@ -315,6 +315,58 @@ sub entry-editor($entry) is export {
 }
 
 
+# Readline prompter. Handles the following cases:
+# 1) Command/Field entry. Tab complete for fields and verbs.
+# 2) Value editor (regular). Prefill previous value. Tab completes existing.
+# 3) Value editor (password). Echo off, no prefill, special instructions.
+# Other things:
+# - keybinding for abort without change
+enum PromptMode <CommandEntry ValueEditor PasswordEditor>;
+sub adv-prompt(PromptMode $mode, $prompt, :@completions) {
+	use Readline;
+	my $rl = Readline.new;
+	my $answer;
+	my $done = False;
+	my sub line-handler(Str $line) {
+		rl_callback_handler_remove();
+		$answer = $line;
+		$done = True;
+	}
+
+	# Tab completion reimplementation, since we can't hook into the system one
+	my sub tab-completer(int32 $a, int32 $b) {
+		use NativeCall;
+		my $buffer = cglobal('readline', 'rl_line_buffer', Str);
+		if $mode ~~ CommandEntry {
+			my @matches = @completions.sort.grep: *.starts-with($buffer);
+			if @matches == 1 {
+				$rl.insert-text(@matches[0].substr($buffer.chars));
+			} elsif @matches > 1 { # maybe add a cut-off at some point
+				# Display matches in two columns, going down (like how bash does it)
+				say "";
+				my $rows = ceiling(@matches / 2);
+				say |$_ for roundrobin @matches>>.fmt('%-40.32s').rotor($rows => 0, :partial);
+				$rl.forced-update-display;
+			}
+		} elsif $mode ~~ ValueEditor {
+			$rl.insert-text(@completions[0] // '') if $buffer eq '';
+		} elsif $mode ~~ PasswordEditor {
+			say "\nNo tab completion for passwords.";
+			$rl.forced-update-display;
+		}
+
+		return False; # we crash unless returning false here
+	}
+
+	rl_callback_handler_install($prompt, &line-handler);
+	$rl.insert-text(@completions[0] // '') if $mode ~~ ValueEditor;
+	$rl.redisplay;
+	$rl.bind-key('	', &tab-completer);
+
+	$rl.callback-read-char() until $done;
+	return $answer;
+}
+
 my %REPL = (
 	'.keys' =>
 		#| .keys: List the keys defined for this entry.
@@ -322,6 +374,11 @@ my %REPL = (
 	'.show' =>
 		#| .show <key>: show the given key for this entry
 		-> $key, :$entry {say $entry.map{$key} // ''},
+	'.editor' =>
+		#| .editor <key>: edit the given key in vim
+		-> $key, :$entry {
+			note 'run vim here';
+		},
 	'.help' =>
 		#| .help: See help for the editor and a list of commands
 		-> *%_ {
@@ -339,7 +396,7 @@ sub simple-entry-editor($entry) is export {
 
 	say ENTRY_EDITOR_HELP;
 	loop { # REPL loop
-		my $line = prompt('> ') // '';
+		my $line = adv-prompt(CommandEntry, '> ', :completions(flat(%REPL.keys, $entry.map.keys)));
 		$line .= trim;
 		last unless $line; # empty line terminates
 
@@ -352,7 +409,9 @@ sub simple-entry-editor($entry) is export {
 				}
 			}
 		} elsif $line ~~ /^$(KEY_PATTERN)$/ {
-			my $value = prompt "$line: ";
+			my $old-value = $entry.map{$line} // '';
+			my $mode = $line eq 'password' ?? PasswordEditor !! ValueEditor;
+			my $value = adv-prompt($mode, "$line: ", :completions([$old-value]));
 			$entry.map{$line} = $value;
 		} else {
 			say "Unknown command.";
