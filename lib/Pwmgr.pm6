@@ -361,7 +361,7 @@ sub adv-prompt(PromptMode $mode, $prompt, :@completions) {
 	rl_callback_handler_install($prompt, &line-handler);
 	$rl.insert-text(@completions[0] // '') if $mode ~~ ValueEditor;
 	$rl.redisplay;
-	$rl.bind-key('	', &tab-completer);
+	$rl.bind-key("\t", &tab-completer);
 
 	$rl.callback-read-char() until $done;
 	return $answer;
