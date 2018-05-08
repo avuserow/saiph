@@ -1,6 +1,5 @@
 use v6.d.PREVIEW;
 
-use File::HomeDir;
 use JSON::Tiny;
 use UUID;
 
@@ -13,7 +12,7 @@ class X::Pwmgr::Error is Exception {
 constant KEY_PATTERN = rx/<[a..zA..Z0..9]><[a..zA..Z0..9._/]>*/;
 class Pwmgr {
 	constant INDEX = 'index';
-	has IO $.path = File::HomeDir.my-home.IO.child('.pwmgr');
+	has IO $.path = $*HOME.child('.pwmgr');
 	has %!index;
 
 	submethod TWEAK {

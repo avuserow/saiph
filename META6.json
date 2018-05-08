@@ -9,7 +9,11 @@
 		"Pwmgr" : "lib/Pwmgr.pm6",
 		"Pwmgr::Test" : "lib/Pwmgr/Test.pm6"
 	},
-	"depends" : [],
+	"depends" : [
+		"JSON::Tiny",
+		"Readline",
+		"UUID"
+	],
 	"tags" : [
 	],
 	"source-url" : "git://github.com/avuserow/perl6-audio-taglib-simple.git"

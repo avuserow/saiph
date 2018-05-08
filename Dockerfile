@@ -19,7 +19,8 @@ WORKDIR /root/pwmgr
 RUN git config --global user.name 'Joe Cool'
 RUN git config --global user.email 'joe@foo.bar'
 
-RUN zef install File::HomeDir JSON::Tiny UUID Readline
+ADD META6.json /root/pwmgr
+RUN zef install --deps-only .
 ADD . /root/pwmgr
 RUN zef install --/test .
 CMD bash
