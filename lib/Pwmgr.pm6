@@ -9,6 +9,8 @@ class X::Pwmgr::Error is Exception {
 	method gist {$!message}
 }
 
+class X::Pwmgr::EditorAbort is X::Pwmgr::Error {}
+
 constant KEY_PATTERN = rx/<[a..zA..Z0..9]><[a..zA..Z0..9._/]>*/;
 class Pwmgr {
 	constant INDEX = 'index';
@@ -135,7 +137,7 @@ class Pwmgr {
 		if @entries == 1 {
 			return @entries[0];
 		} elsif @entries == 0 {
-			die X::Pwmgr::Error("No matching entry found.");
+			die X::Pwmgr::Error.new("No matching entry found.");
 		} else {
 			die X::Pwmgr::Error.new("More than one matching entry: {@entries>>.name.join(', ')}");
 		}
@@ -175,7 +177,7 @@ class Pwmgr {
 	}
 }
 
-constant TEMPLATE = <username password url>;
+constant TEMPLATE = <username password>;
 
 constant ENTRY_EDITOR_HELP = q:to/END/;
 
@@ -239,12 +241,29 @@ sub adv-prompt(PromptMode $mode, $prompt, :@completions) {
 }
 
 my %REPL = (
+	'.abort' =>
+		#| .abort: quit without saving changes
+		-> :$entry {die X::Pwmgr::EditorAbort('exiting')}
 	'.keys' =>
-		#| .keys: List the keys defined for this entry.
+		#| .keys: list the keys defined for this entry.
 		-> :$entry {say $entry.map.keys},
 	'.show' =>
 		#| .show <key>: show the given key for this entry
 		-> $key, :$entry {say $entry.map{$key} // ''},
+	'.move' =>
+		#| .move <oldkey> <newkey>: move the given key
+		-> $oldkey, $newkey, :$entry {
+			if $entry.map{$newkey}:exists {
+				say "Cannot move $oldkey -> $newkey - destination already exists";
+			} else {
+				$entry.map{$newkey} = $entry.map{$oldkey}:delete;
+			}
+		},
+	'.delete' =>
+		#| .delete <key>: delete the specified key
+		-> $key, :$entry {
+			$entry.map{$key}:delete;
+		},
 	'.editor' =>
 		#| .editor <key>: edit the given key in vim
 		-> $key, :$entry {

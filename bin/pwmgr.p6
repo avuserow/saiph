@@ -13,10 +13,9 @@ multi sub MAIN('create') {
 }
 
 multi sub MAIN('add', $key) {
-	my $entry = $pwmgr.get-entry($key);
-	die "Entry $key already exists" if $entry;
+	die "Entry $key already exists" if $pwmgr.get-entry($key);
 	say "New entry $key";
-	$entry = $pwmgr.new-entry;
+	my $entry = $pwmgr.new-entry;
 	$entry.name = $key;
 	$pwmgr.save-entry($entry);
 }
@@ -36,8 +35,14 @@ multi sub MAIN('edit', $key) {
 		$entry = $pwmgr.new-entry;
 		$entry.name = $key;
 	}
+
 	simple-entry-editor($entry);
 	$pwmgr.save-entry($entry);
+	CATCH {
+		when X::Pwmgr::EditorAbort {
+			say 'Exiting without changes';
+		}
+	}
 }
 
 #| Remove an entry from the database.
@@ -77,4 +82,9 @@ multi sub MAIN('clip', $entry, $field) {
 #| Find an entry by name and use it.
 multi sub MAIN('auto', $name) {
 	my $entry = $pwmgr.smartfind($name);
+
+	for TEMPLATE -> $field {
+		say "[$entry.name()] Copied $field to clipboard";
+		$pwmgr.to-clipboard($entry.map{$field} // '');
+	}
 }

@@ -10,10 +10,7 @@ subtest {
 	run-cli(<add foo>);
 	run-cli(<set foo bar>, :in).in.spurt('baz', :close);
 
-	my $proc = run-cli(<show foo bar>, :out);
-	my $data = $proc.out.slurp.chomp;
-	$proc.sink;
-	is $data, 'baz', 'round trip';
-}, 'Basic initialization flow';
+	is run-cli-output(<show foo bar>), 'baz', 'round trip';
+}, 'Basic roundtrip flow';
 
 done-testing;
