@@ -243,7 +243,7 @@ sub adv-prompt(PromptMode $mode, $prompt, :@completions) {
 my %REPL = (
 	'.abort' =>
 		#| .abort: quit without saving changes
-		-> :$entry {die X::Pwmgr::EditorAbort('exiting')}
+		-> :$entry {die X::Pwmgr::EditorAbort('exiting')},
 	'.keys' =>
 		#| .keys: list the keys defined for this entry.
 		-> :$entry {say $entry.map.keys},
