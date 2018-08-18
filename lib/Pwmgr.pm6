@@ -112,13 +112,14 @@ class Pwmgr {
 		);
 	}
 
+	#| Get an entry by key (exact match)
 	method get-entry($key) {
 		with %!index{$key} -> $uuid {
 			return Pwmgr::Entry.new(:$uuid, :store(self));
 		}
 	}
 
-	#| Find entries 
+	#| Find one or more entries using a few different matching techniques
 	method find-entry($name) {
 		# Check for an exact match
 		.return with self.get-entry($name);
@@ -195,7 +196,20 @@ END
 # Other things:
 # - keybinding for abort without change
 enum PromptMode <CommandEntry ValueEditor PasswordEditor>;
-sub adv-prompt(PromptMode $mode, $prompt, :@completions) {
+multi adv-prompt(PromptMode $mode, $prompt, :@completions) {
+	# Readline does not provide an appropriate mode for secrets
+	if $mode ~~ PasswordEditor {
+		use Terminal::Getpass;
+		return getpass($prompt);
+		CATCH {
+			# Getpass throws an untyped exception with ctrl+c
+			default {
+				say ""; # clear the line
+				return Nil;
+			}
+		}
+	}
+
 	use Readline;
 	my $rl = Readline.new;
 	my $answer;
@@ -222,10 +236,8 @@ sub adv-prompt(PromptMode $mode, $prompt, :@completions) {
 				$rl.forced-update-display;
 			}
 		} elsif $mode ~~ ValueEditor {
+			# only a single possible completion for values, so add it if the buffer is empty
 			$rl.insert-text(@completions[0] // '') if $buffer eq '';
-		} elsif $mode ~~ PasswordEditor {
-			say "\nNo tab completion for passwords.";
-			$rl.forced-update-display;
 		}
 
 		return False; # we crash unless returning false here
@@ -235,6 +247,7 @@ sub adv-prompt(PromptMode $mode, $prompt, :@completions) {
 	$rl.insert-text(@completions[0] // '') if $mode ~~ ValueEditor;
 	$rl.redisplay;
 	$rl.bind-key("\t", &tab-completer);
+	# XXX catch ctrl+c here somehow
 
 	$rl.callback-read-char() until $done;
 	return $answer;
@@ -243,7 +256,7 @@ sub adv-prompt(PromptMode $mode, $prompt, :@completions) {
 my %REPL = (
 	'.abort' =>
 		#| .abort: quit without saving changes
-		-> :$entry {die X::Pwmgr::EditorAbort('exiting')},
+		-> *%_ {die X::Pwmgr::EditorAbort('exiting')},
 	'.keys' =>
 		#| .keys: list the keys defined for this entry.
 		-> :$entry {say $entry.map.keys},
@@ -264,11 +277,6 @@ my %REPL = (
 		-> $key, :$entry {
 			$entry.map{$key}:delete;
 		},
-	'.editor' =>
-		#| .editor <key>: edit the given key in vim
-		-> $key, :$entry {
-			note 'run vim here';
-		},
 	'.help' =>
 		#| .help: See help for the editor and a list of commands
 		-> *%_ {
@@ -278,7 +286,6 @@ my %REPL = (
 );
 
 sub simple-entry-editor($entry) is export {
-	say "Editing {$entry.name}";
 #	for TEMPLATE -> $field {
 #		my $result = prompt "$field: ";
 #		$entry.map{$field} = $result;
@@ -288,7 +295,7 @@ sub simple-entry-editor($entry) is export {
 	loop { # REPL loop
 		my $line = adv-prompt(CommandEntry, '> ', :completions(flat(%REPL.keys, $entry.map.keys)));
 		$line .= trim;
-		last unless $line; # empty line terminates
+		last unless $line; # empty line terminates and saves
 
 		my ($verb, @words) = $line.words;
 		with %REPL{$verb} -> &cmd {
@@ -302,7 +309,11 @@ sub simple-entry-editor($entry) is export {
 			my $old-value = $entry.map{$line} // '';
 			my $mode = $line eq 'password' ?? PasswordEditor !! ValueEditor;
 			my $value = adv-prompt($mode, "$line: ", :completions([$old-value]));
-			$entry.map{$line} = $value;
+			if $value {
+				$entry.map{$line} = $value;
+			} else {
+				say "Keeping $line as-is. Use `.delete $line` to remove it.";
+			}
 		} else {
 			say "Unknown command.";
 			say ENTRY_EDITOR_HELP;

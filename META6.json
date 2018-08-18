@@ -12,6 +12,7 @@
 	"depends" : [
 		"JSON::Tiny",
 		"Readline",
+		"Terminal::Getpass",
 		"UUID"
 	],
 	"tags" : [
