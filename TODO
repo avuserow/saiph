@@ -1,0 +1,15 @@
+v1.0
+- Rename to saiph or something
+- Make all matching fuzzy (except for opt-in)
+- Turn off echo when typing passwords
+
+v1.1
+- Alias support
+- Automatic `git status` sanity check to better detect repo changes (and needs to push/etc)
+- Don't hardcode "password" as the only field to use the PasswordEditor
+
+FUTURE
+- Single file import/export format to enable backups
+- Consider change to symmetric file format encryption: either scrypt or GPG symmetric to make setup easier
+- Make all CLI verbs default to prompt interactively for the key to edit to reduce information in your shel history
+- Improve git remote integration to better handle multi-system use

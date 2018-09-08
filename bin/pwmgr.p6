@@ -53,15 +53,25 @@ multi sub MAIN('delete', $key) {
 }
 
 #| Show all keys for the specified entry.
-multi sub MAIN('show', $entry) {
-	my $e = $pwmgr.get-entry($entry) // die "Could not find entry $entry";
+multi sub MAIN('show', $entry, Bool :$exact-match=False) {
+	my $e;
+	if $exact-match {
+		$e = $pwmgr.get-entry($entry) // die "Could not find entry $entry";
+	} else {
+		$e = $pwmgr.smartfind($entry) // die "Could not find entry $entry";
+	}
 	.say for $e.map.keys;
 }
 
 #| Show the specified entry's value for the specified field.
-multi sub MAIN('show', $key, $field) {
-	my $entry = $pwmgr.get-entry($key) // die "Could not find entry $key";
-	say $entry.map{$field} // die "Field $field not found in entry $key";
+multi sub MAIN('show', $entry, $field, Bool :$exact-match=False) {
+	my $e;
+	if $exact-match {
+		$e = $pwmgr.get-entry($entry) // die "Could not find entry $entry";
+	} else {
+		$e = $pwmgr.smartfind($entry) // die "Could not find entry $entry";
+	}
+	say $e.map{$field} // die "Field $field not found in entry $entry";
 }
 
 #| Set the provided entry's field from STDIN (primarily for automation)
