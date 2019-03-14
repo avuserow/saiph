@@ -1,5 +1,5 @@
 {
-	"perl" : "6.*",
+	"perl" : "6.d",
 	"name" : "Pwmgr",
 	"license" : "MIT",
 	"version" : "0.0.1",
