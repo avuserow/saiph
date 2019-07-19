@@ -13,6 +13,8 @@
 		"JSON::Tiny",
 		"Readline",
 		"Terminal::Getpass",
+		"Crypt::Argon2",
+		"Crypt::TweetNacl",
 		"UUID"
 	],
 	"tags" : [

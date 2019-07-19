@@ -1,4 +1,4 @@
-use v6.d.PREVIEW;
+use v6.d;
 
 use JSON::Tiny;
 use UUID;
@@ -13,16 +13,32 @@ class X::Pwmgr::EditorAbort is X::Pwmgr::Error {}
 
 constant KEY_PATTERN = rx/<[a..zA..Z0..9]><[a..zA..Z0..9._/]>*/;
 class Pwmgr {
-	constant INDEX = 'index';
+	use Pwmgr::Crypt;
+	has $.crypt-backend is rw;
 	has IO $.path = $*HOME.child('.pwmgr');
 	has %!index;
 
 	submethod TWEAK {
+		self!determine-crypt-backend;
 		self!read-index;
 	}
 
+	method !determine-crypt-backend {
+		constant CRYPT_BACKENDS = <SecretBox GPG>;
+		for CRYPT_BACKENDS -> $short-backend {
+			my $backend = ::("Pwmgr::Crypt::$short-backend");
+			if $.path.child($backend.index-path) ~~ :f {
+				$.crypt-backend = $backend.new;
+				last;
+			}
+		}
+
+		# no database found, use the default
+		$.crypt-backend //= ::("Pwmgr::Crypt::" ~ CRYPT_BACKENDS[0]).new;
+	}
+
 	method !index-path {
-		$!path.child(INDEX);
+		$!path.child($.crypt-backend.index-path);
 	}
 
 	method !read-index {
@@ -82,23 +98,15 @@ class Pwmgr {
 		my @git = 'git', 'init';
 		run(|@git, :cwd($!path)) or die "Failed to run git: @git[]";
 
-		self!git-commit('Initial commit.', 'index');
+		self!git-commit('Initial commit.', self!index-path);
 	}
 
 	method encrypted-read(IO $path) {
-		my @gpg = 'gpg2', '--quiet', '--decrypt', $path;
-		my $proc = run(|@gpg, :out) // die "Failed to run gpg2: @gpg[]";
-		my $data = $proc.out.slurp(:close);
-		$proc.sink;
-		return $data;
+		$.crypt-backend.encrypted-read($path);
 	}
 
 	method encrypted-write(IO $path, Str $data) {
-		my $fh = open $path, :w;
-		my @gpg = 'gpg2', '--quiet', '--encrypt', '--default-recipient-self';
-		my $proc = run(|@gpg, :in, :out($fh)) // die "Failed to run gpg2: @gpg[]";
-		$proc.in.spurt($data, :close);
-		$proc.sink;
+		$.crypt-backend.encrypted-write($path, $data);
 	}
 
 	method all {
@@ -149,7 +157,7 @@ class Pwmgr {
 		%!index{$entry.name} = $entry.uuid;
 		self!write-index;
 
-		self!git-commit("Updated {$entry.uuid}", $entry.path, INDEX);
+		self!git-commit("Updated {$entry.uuid}", $entry.path, self!index-path);
 	}
 
 	method remove-entry($entry) {
@@ -160,7 +168,7 @@ class Pwmgr {
 		my @rm = 'git', 'rm', '--', $entry.path;
 		run(|@rm, :cwd($!path)) or die "Failed to run git: @rm[]";
 
-		self!git-commit("Removed {$entry.uuid}", INDEX);
+		self!git-commit("Removed {$entry.uuid}", self!index-path);
 	}
 
 	method !git-commit($message, *@files) {
