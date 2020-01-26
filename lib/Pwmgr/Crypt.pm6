@@ -79,8 +79,8 @@ class Pwmgr::Crypt::SecretBox does Pwmgr::Crypt {
 		my $message = from-json($fh.slurp());
 
 		my $passphrase = self!get-secret;
-		my $key, $ = self!derive-key($passphrase, $message<kdf>);
-		die "KDF returned wrong number of bytes" if $key.elems != 32;
+		my ($key, $) = self!derive-key($passphrase, :parameters($message<kdf>));
+		die "KDF returned wrong number of bytes" if $key.list.elems != 32;
 
 		use Crypt::TweetNacl::Constants;
 		use NativeCall;
@@ -95,8 +95,8 @@ class Pwmgr::Crypt::SecretBox does Pwmgr::Crypt {
 		return $data.decode;
 	}
 
-	my sub from-hexstr(Str $encoded --> Blob) {
-		Blob.new: $encoded.comb(/../).map: {:16($_)};
+	my sub from-hexstr(Str $encoded --> Buf) {
+		Buf.new: $encoded.comb(/../).map: {:16($_)};
 	}
 
 	my sub to-hexstr(Blob $bytes --> Str) {

@@ -15,11 +15,12 @@ constant KEY_PATTERN = rx/<[a..zA..Z0..9]><[a..zA..Z0..9._/]>*/;
 class Pwmgr {
 	use Pwmgr::Crypt;
 	has $.crypt-backend is rw;
-	has IO $.path = $*HOME.child('.pwmgr');
+	has IO $.path = IO;
 	has %!index;
 
 	submethod TWEAK {
-		self!determine-crypt-backend;
+		$!path //= $*HOME.child('.pwmgr');
+		self!determine-crypt-backend unless $!crypt-backend;
 		self!read-index;
 	}
 

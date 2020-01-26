@@ -3,7 +3,7 @@
 use v6.d;
 
 use Pwmgr;
-my Pwmgr $pwmgr .= new;
+my Pwmgr $pwmgr .= new(:path(%*ENV<SAIPH_PATH>.?IO));
 
 #| Initialize the database.
 multi sub MAIN('create') {
