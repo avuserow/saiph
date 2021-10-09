@@ -5,6 +5,10 @@
       "from": "bin",
       "name": "git"
     },
+    {
+      "from": "bin",
+      "name": "xclip"
+    },
     "JSON::Tiny",
     "Readline",
     "Terminal::Getpass",
