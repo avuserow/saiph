@@ -1,7 +1,5 @@
 v1.0
-- Rename to saiph or something
 - Make all matching fuzzy (except for opt-in)
-- Turn off echo when typing passwords
 
 v1.1
 - Alias support
