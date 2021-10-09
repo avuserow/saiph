@@ -17,9 +17,9 @@
   "name": "Saiph",
   "perl": "6.d",
   "provides": {
-    "Saiph": "lib/Saiph.pm6",
-    "Saiph::Crypt": "lib/Saiph/Crypt.pm6",
-    "Saiph::Test": "lib/Saiph/Test.pm6"
+    "Saiph": "lib/Saiph.rakumod",
+    "Saiph::Crypt": "lib/Saiph/Crypt.rakumod",
+    "Saiph::Test": "lib/Saiph/Test.rakumod"
   },
   "source-url": "",
   "tags": [],
