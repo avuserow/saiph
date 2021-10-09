@@ -181,7 +181,9 @@ class Pwmgr {
 	}
 
 	method to-clipboard($value) {
-		my @xclip = 'xclip', '-loops', '1', '-quiet';
+		# use -wait 100 to handle apps reading from the buffer multiple times
+		# similar to -sensitive but with a longer timeout
+		my @xclip = 'xclip', '-wait', 100, '-quiet';
 		my $proc = run(|@xclip, :in) // die "Failed to run xclip: @xclip[]";
 		$proc.in.spurt($value, :close);
 	}
