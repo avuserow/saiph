@@ -1,6 +1,6 @@
 use v6;
 
-constant APP = 'pwmgr.p6';
+constant APP = 'saiph.p6';
 
 sub run-cli(|args) is export {
 	run(|APP, |args);

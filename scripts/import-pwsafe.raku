@@ -1,4 +1,4 @@
-#!/usr/bin/env perl6
+#!/usr/bin/env raku
 
 use v6;
 use v6.d.PREVIEW;
@@ -20,9 +20,9 @@ sub MAIN() {
 		$key = "$group.$name" if $group;
 
 		say $key;
-		run('pwmgr.p6', 'add', $key);
-		run('pwmgr.p6', 'set', $key, 'username', :in).in.spurt($login, :close);
-		run('pwmgr.p6', 'set', $key, 'password', :in).in.spurt($passwd, :close);
-		run('pwmgr.p6', 'set', $key, 'notes', :in).in.spurt($notes, :close);
+		run('saiph.p6', 'add', $key);
+		run('saiph.p6', 'set', $key, 'username', :in).in.spurt($login, :close);
+		run('saiph.p6', 'set', $key, 'password', :in).in.spurt($passwd, :close);
+		run('saiph.p6', 'set', $key, 'notes', :in).in.spurt($notes, :close);
 	}
 }

@@ -1,12 +1,12 @@
 use v6.d;
 
-role Pwmgr::Crypt {
+role Saiph::Crypt {
 	method index-path(--> Str) {...}; # XXX rename this
 	method encrypted-read(IO $path --> Str) {...};
 	method encrypted-write(IO $path, Str $data) {...};
 }
 
-class Pwmgr::Crypt::GPG does Pwmgr::Crypt {
+class Saiph::Crypt::GPG does Saiph::Crypt {
 	method index-path {
 		return 'index';
 	}
@@ -28,7 +28,7 @@ class Pwmgr::Crypt::GPG does Pwmgr::Crypt {
 	}
 }
 
-class Pwmgr::Crypt::SecretBox does Pwmgr::Crypt {
+class Saiph::Crypt::SecretBox does Saiph::Crypt {
 	use Crypt::Argon2::DeriveKey;
 	use Crypt::Random;
 	use Crypt::TweetNacl::SecretKey;

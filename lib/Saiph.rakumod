@@ -3,23 +3,23 @@ use v6.d;
 use JSON::Tiny;
 use UUID;
 
-class X::Pwmgr::Error is Exception {
+class X::Saiph::Error is Exception {
 	has $.message;
 	method new($message) {self.bless(:$message);}
 	method gist {$!message}
 }
 
-class X::Pwmgr::EditorAbort is X::Pwmgr::Error {}
+class X::Saiph::EditorAbort is X::Saiph::Error {}
 
 constant KEY_PATTERN = rx/<[a..zA..Z0..9]><[a..zA..Z0..9._/]>*/;
-class Pwmgr {
-	use Pwmgr::Crypt;
+class Saiph {
+	use Saiph::Crypt;
 	has $.crypt-backend is rw;
 	has IO $.path = IO;
 	has %!index;
 
 	submethod TWEAK {
-		$!path //= $*HOME.child('.pwmgr');
+		$!path //= $*HOME.child('.saiph');
 		self!determine-crypt-backend unless $!crypt-backend;
 		self!read-index;
 	}
@@ -27,7 +27,7 @@ class Pwmgr {
 	method !determine-crypt-backend {
 		constant CRYPT_BACKENDS = <SecretBox GPG>;
 		for CRYPT_BACKENDS -> $short-backend {
-			my $backend = ::("Pwmgr::Crypt::$short-backend");
+			my $backend = ::("Saiph::Crypt::$short-backend");
 			if $.path.child($backend.index-path) ~~ :f {
 				$.crypt-backend = $backend.new;
 				last;
@@ -35,7 +35,7 @@ class Pwmgr {
 		}
 
 		# no database found, use the default
-		$.crypt-backend //= ::("Pwmgr::Crypt::" ~ CRYPT_BACKENDS[0]).new;
+		$.crypt-backend //= ::("Saiph::Crypt::" ~ CRYPT_BACKENDS[0]).new;
 	}
 
 	method !index-path {
@@ -61,11 +61,11 @@ class Pwmgr {
 	# XXX: consider whether we should flatten this into a single hash,
 	# and not differentiate between user data and our data aside from a simple
 	# whitelist and beginning with a . or similar
-	class Pwmgr::Entry {
+	class Saiph::Entry {
 		has Str $.uuid;
 		has Str $.name is rw;
 		has IO $.path;
-		has Pwmgr $!store;
+		has Saiph $!store;
 
 		subset EntryKey of Str where * ~~ /^$(KEY_PATTERN)$/;
 		has %.map{EntryKey};
@@ -115,7 +115,7 @@ class Pwmgr {
 	}
 
 	method new-entry {
-		Pwmgr::Entry.new(
+		Saiph::Entry.new(
 			:uuid(UUID.new(:version(4)).Str),
 			:store(self),
 		);
@@ -124,7 +124,7 @@ class Pwmgr {
 	#| Get an entry by key (exact match)
 	method get-entry($key) {
 		with %!index{$key} -> $uuid {
-			return Pwmgr::Entry.new(:$uuid, :store(self));
+			return Saiph::Entry.new(:$uuid, :store(self));
 		}
 	}
 
@@ -147,9 +147,9 @@ class Pwmgr {
 		if @entries == 1 {
 			return @entries[0];
 		} elsif @entries == 0 {
-			die X::Pwmgr::Error.new("No matching entry found.");
+			die X::Saiph::Error.new("No matching entry found.");
 		} else {
-			die X::Pwmgr::Error.new("More than one matching entry: {@entries>>.name.join(', ')}");
+			die X::Saiph::Error.new("More than one matching entry: {@entries>>.name.join(', ')}");
 		}
 	}
 
@@ -267,7 +267,7 @@ multi adv-prompt(PromptMode $mode, $prompt, :@completions) {
 my %REPL = (
 	'.abort' =>
 		#| .abort: quit without saving changes
-		-> *%_ {die X::Pwmgr::EditorAbort('exiting')},
+		-> *%_ {die X::Saiph::EditorAbort('exiting')},
 	'.keys' =>
 		#| .keys: list the keys defined for this entry.
 		-> :$entry {say $entry.map.keys},

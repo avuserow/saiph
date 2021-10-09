@@ -1,10 +1,10 @@
-#!/usr/bin/env perl6
+#!/usr/bin/env raku
 
-use Pwmgr;
+use Saiph;
 
-my $old = Pwmgr.new;
+my $old = Saiph.new;
 
-my $new = Pwmgr.new(path => '/tmp/pwmgr-converted'.IO);
+my $new = Saiph.new(path => '/tmp/saiph-converted'.IO);
 $new.create;
 
 for $old.all -> $key {

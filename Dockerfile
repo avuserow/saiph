@@ -1,5 +1,7 @@
 FROM rakudo-star
 
+RUN exit 1 # TODO: fix integration tests
+
 RUN apt update && apt install -y libreadline-dev gnupg2
 RUN echo '\
 %echo Generating a basic OpenPGP key\n\
@@ -15,12 +17,12 @@ Expire-Date: 0\n\
 %commit\n\
 %echo done' | gpg2 --batch --generate-key
 
-WORKDIR /root/pwmgr
+WORKDIR /root/saiph
 RUN git config --global user.name 'Joe Cool'
 RUN git config --global user.email 'joe@foo.bar'
 
-ADD META6.json /root/pwmgr
+ADD META6.json /root/saiph
 RUN zef install --deps-only .
-ADD . /root/pwmgr
+ADD . /root/saiph
 RUN zef install --/test .
 CMD bash

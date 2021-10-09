@@ -1,9 +1,9 @@
-#!/usr/bin/env perl6
+#!/usr/bin/env raku
 
 use v6;
 use v6.c;
 use Test;
-use Pwmgr::Test;
+use Saiph::Test;
 
 subtest {
 	run-cli(<create>);

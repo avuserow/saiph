@@ -1,13 +1,13 @@
 {
 	"perl" : "6.d",
-	"name" : "Pwmgr",
+	"name" : "Saiph",
 	"license" : "MIT",
 	"version" : "0.0.1",
-	"description" : "Manage your passwords",
+	"description" : "CLI password manager",
 	"author" : "Adrian Kreher",
 	"provides" : {
-		"Pwmgr" : "lib/Pwmgr.pm6",
-		"Pwmgr::Test" : "lib/Pwmgr/Test.pm6"
+		"Saiph" : "lib/Saiph.pm6",
+		"Saiph::Test" : "lib/Saiph/Test.pm6"
 	},
 	"depends" : [
 		"JSON::Tiny",
