@@ -2,6 +2,8 @@
 
 use v6.d;
 
+my %*SUB-MAIN-OPTS = :named-anywhere;
+
 use Pwmgr;
 my Pwmgr $pwmgr .= new(:path(%*ENV<SAIPH_PATH>.?IO));
 
@@ -95,5 +97,36 @@ multi sub MAIN('auto', $name) {
 	for TEMPLATE -> $field {
 		say "[$entry.name()] Copied $field to clipboard";
 		$pwmgr.to-clipboard($entry.map{$field} // '');
+	}
+}
+
+
+#| WIP
+multi sub MAIN('fzf', Bool :$stdout) {
+	my @all = $pwmgr.all.sort;
+	my $proc = run('fzf', '--tac', :in, :out);
+	$proc.in.spurt(@all.join("\n"), :close);
+	my $name = $proc.out.slurp.chomp;
+
+	return unless $name;
+
+	my $entry = $pwmgr.get-entry($name) // die "Could not find entry $name";
+
+	for TEMPLATE -> $field {
+		if $stdout {
+			say "$field: {$entry.map{$field} // ''}";
+		} else {
+			say "[$entry.name()] Copied $field to clipboard";
+			$pwmgr.to-clipboard($entry.map{$field} // '');
+		}
+	}
+}
+
+#| Verify database integrity.
+multi sub MAIN('check-integrity') {
+	for $pwmgr.all -> $key {
+		print "$key ";
+		$pwmgr.get-entry($key);
+		say "OK";
 	}
 }
