@@ -101,13 +101,14 @@ multi sub MAIN('auto', $name) {
 }
 
 
-#| WIP
+#| Interactively select an entry to use (requires fzf in path)
 multi sub MAIN('fzf', Bool :$stdout) {
 	my @all = $pwmgr.all.sort;
 	my $proc = run('fzf', '--tac', :in, :out);
 	$proc.in.spurt(@all.join("\n"), :close);
 	my $name = $proc.out.slurp.chomp;
 
+	sink $proc; # check for errors
 	return unless $name;
 
 	my $entry = $pwmgr.get-entry($name) // die "Could not find entry $name";
