@@ -14,6 +14,14 @@ RUN dnf install -y \
 	libzstd-devel \
 	meson
 
+# Build our own copy of wl-clipboard for the sensitive flag
+COPY vendor/wl-clipboard /vendor/wl-clipboard
+RUN cd /vendor/wl-clipboard \
+	&& meson setup build \
+	&& cd build \
+	&& ninja \
+	&& meson install
+
 # This is needed for LibraryMake-based modules. LibraryMake finds the compiler
 # string used for raku itself, and that will include some RPM macros, which
 # require the following fields.

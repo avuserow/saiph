@@ -181,10 +181,20 @@ class Saiph {
 	}
 
 	method to-clipboard($value) {
-		# use -wait 100 to handle apps reading from the buffer multiple times
-		# similar to -sensitive but with a longer timeout
-		my @xclip = 'xclip', '-wait', 100, '-quiet';
-		my $proc = run(|@xclip, :in) // die "Failed to run xclip: @xclip[]";
+		my @clip;
+
+		if %*ENV<DISPLAY> {
+			# X11 mode
+			# use -wait 200 to handle apps reading from the buffer multiple times
+			# similar to -sensitive but with a longer timeout
+			@clip = 'xclip', '-wait', 200, '-quiet';
+		} elsif %*ENV<WAYLAND_DISPLAY> {
+			@clip = 'wl-copy', '--foreground', '--paste-once', '--sensitive';
+		} else {
+			die "environment variables DISPLAY and WAYLAND_DISPLAY were both missing, cannot copy to clipboard";
+		}
+
+		my $proc = run(|@clip, :in) // die "Failed to copy to clipboard: @clip[]";
 		$proc.in.spurt($value, :close);
 	}
 }

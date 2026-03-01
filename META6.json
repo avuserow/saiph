@@ -6,8 +6,10 @@
       "name": "git"
     },
     {
-      "from": "bin",
-      "name": "xclip"
+            "any": [
+                    {"from": "bin", "name": "wl-copy"},
+                    {"from": "bin", "name": "xclip"}
+            ]
     },
     "JSON::Tiny",
     "Readline",

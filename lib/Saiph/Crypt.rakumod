@@ -39,9 +39,9 @@ class Saiph::Crypt::SecretBox does Saiph::Crypt {
 	has $!passphrase = Nil;
 	has $!salt = Nil;
 	my $default-parameters = {
-		t_cost => 3,
-		m_cost => 32*1024,
-		parallelism => 1,
+		t_cost => 32,
+		m_cost => 1048576,
+		parallelism => 8,
 		hashlen => 32,
 	};
 
